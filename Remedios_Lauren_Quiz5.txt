@@ -1,0 +1,90 @@
+Lauren Remedios (7783669) - EPI5143 Quiz 5
+
+libname classdat "C:/EPI 5143 class data";
+libname exercise "C:/EPI 5143 work folder/data";
+
+/*STEP 1*/
+/* removing all duplicates and creating new dataset with unique admissions*/ 
+proc sort data= classdat.nhrabstracts out=uniqueadm2 nodupkey;
+by hraEncWID; 
+run;
+/* converting hraadmdtm (date-time variable) into DATE variable*/
+data dateonly2;
+set uniqueadm2;
+new_date = datepart(hraadmdtm);
+format new_date date9.;
+run;
+/*no duplicates identified, now creating new dataset with only admit 
+dates between Jan 1st 2003 to Dec 31st 2004*/
+data quiz5_spine;
+set dateonly2;
+by hraEncWid;
+if '01Jan2003'd <= new_date <= '31Dec2004'd;
+run;
+
+/*STEP 2 AND 3*/
+/*making new dataset from nhrdiagnosis*/
+data diagnoses96;
+set classdat.nhrdiagnosis;
+run;
+/*not necessary step, but just trimming diagnoses codes so it's easier to view the 3 diabetes codes*/
+data shortdiag;
+set diagnoses96;
+length hdgCd $3; /*setting the variable length to 3 characters*/
+diagnosis=substr(hdgCd, 1,3);
+run;
+/*flat filed by encounter id to make it easier to veiw all the diagnoses codes/encounter, also renamed encounter id to match 
+spine dataset for merging later*/
+Proc transpose data=shortdiag
+out=newresults2 (rename=(hdghraencwid=hraencwid))
+prefix=diag;
+by hdgHraEncWid;
+var diagnosis;
+run;
+/* made an array that counts the number of diagnoses codes per encounter (that are now column variables) if they meet one of the
+diabetes codes*/
+data diabetescount;
+set newresults2;
+array diag (24) diag1-diag24;
+diabetes=0;
+do _n_=1 to dim(diag);
+	if diag{_n_}in: ("250","E11","E10") then diabetes+1; /*step to count if it meets the diabetes codes*/
+	end;
+run;
+
+data bincount;
+set diabetescount;
+if diabetes >=1 then DM=1;/* creating the indicator variable DM based on the counts from the previous array*/
+if diabetes <1 then DM=0;
+run;
+
+/*STEP 4*/
+/*sorting diabetes dataset before merge*/
+proc sort data = bincount out=ribs (rename=(hdghraencwid=hraencwid)); 
+by hraencwid; 
+run;
+/*sorting spine dataset before merge*/
+proc sort data=quiz5_spine;
+by hraencwid;
+run;
+/*merging final dataset*/
+data final;
+merge quiz5_spine ribs;
+by hraencwid;
+run;
+
+/*STEP 5*/
+/*getting a frequency for each diagnoses code by DM variable*/
+proc freq data = final;
+table diag1-diag24*dm;
+run;
+
+/*FREQUENCY TABLE OUTPUT*/
+/*the resulting output that I get is very long, since it is by diag column...so I do not have a final answer
+for the proportions of diabetes hospital admissions...*/
+/* Based on this output, I know some of my previous code is not correct...however I cannot figure out exactly 
+where I went wrong (I think it was the transpose step but it could have potentially been the merge?) and have tried multiple times 
+to fix this but I believe I have some of the correct steps, perhaps not in the correct order*/
+
+  
+ 
